@@ -19,7 +19,7 @@ def bias_variable(shape):
     return tf.Variable(initial)
 
 
-def conv_layer(input_tensor, num_in, num_out, kernel_size=[3, 3], ):
+def conv_layer(input_tensor, num_in, num_out, kernel_size=[3, 3]):
     weights = weight_variable([kernel_size[0], kernel_size[1], num_in, num_out])
     bias = bias_variable([num_out])
     output_tensor = tf.nn.relu(tf.nn.conv2d(input_tensor, weights, strides=[1, 1, 1, 1], padding='SAME') + bias)
@@ -28,11 +28,11 @@ def conv_layer(input_tensor, num_in, num_out, kernel_size=[3, 3], ):
 
 
 def max_pool(x, pool_count):
-    return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME'), 2*num_out, pool_count + 1
+    return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME'), 2*num_out, pool_count * 2
 
 
-def dense_layer(c_in, num_in, num_out, pool_count):
-    num_neurons = x_len // pool_count * y_len//pool_count * num_in
+def dense_layer(c_in, num_in, num_out, p_count):
+    num_neurons = x_len // p_count * y_len // p_count * num_in
     W_fc1 = weight_variable([num_neurons, num_out])
     b_fc1 = bias_variable([num_out])
     h_pool2_flat = tf.reshape(c_in, [-1, num_neurons])
@@ -40,14 +40,14 @@ def dense_layer(c_in, num_in, num_out, pool_count):
     return tf.nn.dropout(h_fc1, keep_prob)
 
 
-def import_data(file_loc):
+def import_data(file_loc, x_len, y_len):
     files = glob(file_loc + '/**/*.tif', recursive=True)
     labels = []
     data =[]
     i = len(files)
     for file in files:
         image = plt.imread(file)
-        image = resize(image, (512, 512))
+        image = resize(image, (x_len, y_len))
         image = (image - np.amin(image))/np.amax(image)
         label = 'no_fish' not in file
         data.append(image)
@@ -60,15 +60,16 @@ def import_data(file_loc):
     labels = (np.arange(2) == labels_np[:, None]).astype(np.float32)
     return data, labels
 
+
 fileloc = '/media/teddy/Stephen Dedalus/HT-triggering_data'
-
-
-data, labels = import_data(fileloc)
+x_len = 128
+y_len = 128
+data, labels = import_data(fileloc, x_len, y_len)
 
 train_data, test_data, train_labels, test_labels = train_test_split(data, labels)
 
-num_epochs = 3
-BATCH_SIZE = 1
+num_epochs = 10
+BATCH_SIZE = 10
 l_rate = .0001
 kernels_in_first_layer = 32
 
@@ -77,11 +78,9 @@ sess = tf.InteractiveSession()
 
 
 # placeholder for our data input and output
-x_len = 512
-y_len = 512
-data_size = 512 * 512
-p_count = 0
-num_in = 2
+data_size = x_len * y_len
+p_count = 1
+num_in = 1
 num_out = kernels_in_first_layer
 x = tf.placeholder(tf.float32, shape=[None, data_size])
 x_image = tf.reshape(x, [-1, x_len, y_len, 1])
@@ -96,6 +95,7 @@ p1, num_out, p_count = max_pool(c1, p_count)
 p1.get_shape()
 c2, num_in = conv_layer(p1, num_in, num_out)
 p2, num_out, p_count = max_pool(c2, p_count)
+
 
 
 # dense layer
@@ -121,14 +121,15 @@ for step in range(num_epochs * train_size // BATCH_SIZE):
     batch_data = train_data[offset:(offset + BATCH_SIZE)]
     batch_data = [np.array(i).flatten() for i in batch_data]
     batch_labels = train_labels[offset:(offset + BATCH_SIZE)]
-    if step % 500 == 0:
+    train_step.run(feed_dict={x: batch_data, y_: batch_labels, keep_prob: 0.5})
+    if step % 100 == 0:
         train_accuracy = accuracy.eval(feed_dict={
             x: batch_data, y_: batch_labels, keep_prob: 1.0})
         print("step %d, training accuracy %g" % (step, train_accuracy))
         ac_list.append(train_accuracy)
-    train_step.run(feed_dict={x: batch_data, y_: batch_labels, keep_prob: 0.5})
 
 #  Test accuracy
+test_data = [np.array(i).flatten() for i in test_data]
 print("test set accuracy %g" % accuracy.eval(feed_dict={
     x: test_data, y_: test_labels, keep_prob: 1.0}))
 
