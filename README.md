@@ -1,2 +1,2 @@
-# fish_no-fish_convnet
-A convolutional neural net for detecting zebrafish tubing
+# 2d convnet
+A simple example of a 2d convolutional neural net that is easy to modify
